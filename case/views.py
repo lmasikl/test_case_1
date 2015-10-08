@@ -15,10 +15,16 @@ from case.models import Account, Department, Payment, Project
 # Application generic views
 class JSONResponseMixin(object):
     """JSON mixin."""
-    @staticmethod
-    def render_to_json_response(context, page=1, per_page=20):
+
+    def render_to_json_response(self, context, page=1, per_page=20):
         if isinstance(context, Model):
             context = json.loads(serialize('json', [context]))[0]
+            context['meta'] = {}
+            for field in self.model._meta.fields:
+                context['meta'][field.name] = {
+                    'label': field.verbose_name,
+                    'type': field.get_internal_type()
+                }
         elif isinstance(context, QuerySet):
             paginator = Paginator(context, per_page)
             items = json.loads(
@@ -120,7 +126,6 @@ class ObjectsListView(JSONResponseMixin, View):
 
         else:
             for key, value in grouped:
-                # create ORM filter
                 key = '{0}__in'.format(key)
                 value = map(lambda x: x[1], value)
                 orm_filter[key] = value
@@ -128,12 +133,10 @@ class ObjectsListView(JSONResponseMixin, View):
             return self.model.objects.filter(**orm_filter)
 
     def get_data(self, request, *args, **kwargs):
-        # filter get params where key starts with fl
         filters = filter(
             lambda x: x[0].startswith('fl'), request.GET.iteritems()
         )
         if filters:
-            # group filter params by field
             grouped = map(lambda x: (x[0], list(x[1])), itertools.groupby(
                 filters, lambda x: x[0][3:-1].split('][')[0]
             ))
@@ -150,7 +153,9 @@ class PlanedPaymentsListView(ObjectsListView):
     model = Payment
 
     def get_data(self, request, *args, **kwargs):
-        data = super(PlanedPaymentsListView, self).get_data(request, *args, **kwargs)
+        data = super(PlanedPaymentsListView, self).get_data(
+            request, *args, **kwargs
+        )
         return data.obejcts.filter(status=1)
 
 
@@ -158,7 +163,9 @@ class FactPaymentsListView(ObjectsListView):
     model = Payment
 
     def get_data(self, request, *args, **kwargs):
-        data = super(FactPaymentsListView, self).get_data(request, *args, **kwargs)
+        data = super(FactPaymentsListView, self).get_data(
+            request, *args, **kwargs
+        )
         return data.obejcts.filter(status=2)
 
 
