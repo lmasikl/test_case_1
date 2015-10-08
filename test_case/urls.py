@@ -1,9 +1,9 @@
 from django.conf.urls import include, url
 from django.contrib import admin
 
-from case.views import AccountsListView, AccountView, DepartmentView, \
-    DepartmentsListView, ProjectView, ProjectsListView, PaymentView, \
-    PlanedPaymentsListView, FactPaymentsListView
+from case.views import (AccountsListView, AccountView, DepartmentsListView,
+                        DepartmentView, FactPaymentsListView, PaymentView,
+                        PlanedPaymentsListView, ProjectsListView, ProjectView)
 
 urlpatterns = [
     url(r'account/$', AccountView.as_view(), name='account'),

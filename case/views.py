@@ -1,13 +1,14 @@
 # coding=utf-8
+import itertools
 import json
+from django.core.paginator import Paginator
 
 from django.core.serializers import serialize
-from django.db.models import Model, QuerySet, Q
+from django.db.models import Q, Model, QuerySet
 from django.http import Http404, HttpResponseBadRequest, JsonResponse
-from django.views.generic import DetailView, ListView, View
-import itertools
+from django.views.generic import View
 
-from case.forms import AccountForm, DepartmentForm, ProjectForm, PaymentForm
+from case.forms import AccountForm, DepartmentForm, PaymentForm, ProjectForm
 from case.models import Account, Department, Payment, Project
 
 
@@ -15,12 +16,20 @@ from case.models import Account, Department, Payment, Project
 class JSONResponseMixin(object):
     """JSON mixin."""
     @staticmethod
-    def render_to_json_response(context):
+    def render_to_json_response(context, page=1, per_page=20):
         if isinstance(context, Model):
             context = json.loads(serialize('json', [context]))[0]
         elif isinstance(context, QuerySet):
-            items = json.loads(serialize('json', context))
-            context = {'items': items, 'page': 1, 'limit': 20}
+            paginator = Paginator(context, per_page)
+            items = json.loads(
+                serialize('json', paginator.page(page).object_list)
+            )
+            context = {
+                'items': items,
+                'page': page,
+                'num_pages': paginator.num_pages,
+                'limit': paginator.per_page
+            }
 
         return JsonResponse(context)
 
