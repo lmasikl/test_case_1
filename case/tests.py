@@ -74,3 +74,37 @@ class AccountTest(TestCase):
         content = json.loads(response.content)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(content['items']), 0)
+
+    def test_search_account(self):
+        data_one = {
+            'number': 100,
+            'name': 'fake',
+            'account': 100,
+            'bank': 1,
+            'currency': 'rub'
+        }
+        data_two = {
+            'number': 101,
+            'name': 'fake',
+            'account': 100,
+            'bank': 1,
+            'currency': 'usd'
+        }
+        self.client.post(reverse('account'), data=data_one)
+        self.client.post(reverse('account'), data=data_two)
+        # AND
+        response = self.client.get(
+            reverse('accounts'), data={'fl[currency]': 'usd'}
+        )
+        content = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(content['items']), 1)
+        # OR
+        response = self.client.get(
+            reverse('accounts'), data={
+                'fl[currency]': 'usd', 'fl[number]': 100, 'fl[_op]': 'or'
+            }
+        )
+        content = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(content['items']), 2)

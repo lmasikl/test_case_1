@@ -2,11 +2,12 @@
 import json
 
 from django.core.serializers import serialize
-from django.db.models import Model, QuerySet
+from django.db.models import Model, QuerySet, Q
 from django.http import Http404, HttpResponseBadRequest, JsonResponse
 from django.views.generic import DetailView, ListView, View
+import itertools
 
-from case.forms import AccountForm
+from case.forms import AccountForm, DepartmentForm, ProjectForm, PaymentForm
 from case.models import Account, Department, Payment, Project
 
 
@@ -85,55 +86,97 @@ class ObjectView(JSONResponseMixin, View):
         return self.render_to_json_response({})
 
 
-class ObjectsView(JSONResponseMixin, View):
+class ObjectsListView(JSONResponseMixin, View):
     """List objects view."""
     model = None
 
+    def get_queryset(self, grouped):
+        orm_filter = {}
+        _op = filter(lambda x: x[0] == '_op', grouped)
+        if _op:
+            grouped.pop(grouped.index(_op[0]))
+            _op = list(list(_op)[0][1])[0][1]
+
+        if _op == 'or':
+            queries = []
+            for key, value in grouped:
+                value = value[0][1]
+                queries.append(Q(**{key: value}))
+
+            query = queries.pop()
+            for item in queries:
+                query |= item
+
+            return self.model.objects.filter(query)
+
+        else:
+            for key, value in grouped:
+                # create ORM filter
+                key = '{0}__in'.format(key)
+                value = map(lambda x: x[1], value)
+                orm_filter[key] = value
+
+            return self.model.objects.filter(**orm_filter)
+
+    def get_data(self, request, *args, **kwargs):
+        # filter get params where key starts with fl
+        filters = filter(
+            lambda x: x[0].startswith('fl'), request.GET.iteritems()
+        )
+        if filters:
+            # group filter params by field
+            grouped = map(lambda x: (x[0], list(x[1])), itertools.groupby(
+                filters, lambda x: x[0][3:-1].split('][')[0]
+            ))
+            return self.get_queryset(grouped)
+
+        return self.model.objects.all()
+
     def get(self, request, *args, **kwargs):
-        data = self.model.objects.all()
+        data = self.get_data(request, *args, **kwargs)
         return self.render_to_json_response(data)
 
 
-class PlanedPaymentsView(JSONResponseMixin, ListView):
+class PlanedPaymentsListView(ObjectsListView):
     model = Payment
 
-    def get_context_data(self):
-        pass
-        # filter get params where key starts with fl
-        # group filtered params by field
-        # create ORM filter
-        # filter payments where closed=False
+    def get_data(self, request, *args, **kwargs):
+        data = super(PlanedPaymentsListView, self).get_data(request, *args, **kwargs)
+        return data.obejcts.filter(status=1)
 
 
-class FactPaymentsView(JSONResponseMixin, ListView):
+class FactPaymentsListView(ObjectsListView):
     model = Payment
 
-    def get_context_data(self):
-        pass
-        # filter payments where colosed=True
+    def get_data(self, request, *args, **kwargs):
+        data = super(FactPaymentsListView, self).get_data(request, *args, **kwargs)
+        return data.obejcts.filter(status=2)
 
 
-class PaymentView(JSONResponseMixin, DetailView):
+class PaymentView(ObjectView):
     model = Payment
+    form = PaymentForm
 
 
-class ProjectsView(JSONResponseMixin, ListView):
+class ProjectsListView(ObjectsListView):
     model = Project
 
 
-class ProjectView(JSONResponseMixin, DetailView):
+class ProjectView(ObjectView):
     model = Project
+    form = ProjectForm
 
 
-class DepartmentsView(JSONResponseMixin, ListView):
+class DepartmentsListView(ObjectsListView):
     model = Department
 
 
-class DepartmentView(JSONResponseMixin, DetailView):
+class DepartmentView(ObjectView):
     model = Department
+    form = DepartmentForm
 
 
-class AccountsView(ObjectsView):
+class AccountsListView(ObjectsListView):
     model = Account
 
 
